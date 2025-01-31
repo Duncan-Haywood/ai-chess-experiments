@@ -1,29 +1,29 @@
 {
-  "name": "chess-bot-dashboard",
-  "version": "0.1.0",
+  "name": "chess-bot-frontend",
   "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint src --ext ts,tsx",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
-    "chess.js": "^1.0.0-beta.7",
+    "@types/chess.js": "^0.13.7",
+    "chess.js": "^1.0.0",
+    "framer-motion": "^11.0.3",
     "react": "^18.2.0",
     "react-chessboard": "^4.3.4",
-    "react-dom": "^18.2.0",
-    "zustand": "^4.5.0",
-    "framer-motion": "^11.0.3"
-  },
-  "scripts": {
-    "start": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
-    "@types/chess.js": "^0.13.7",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "@vitejs/plugin-react": "^4.2.1",
@@ -32,4 +32,4 @@
     "typescript": "^5.3.3",
     "vite": "^5.0.12"
   }
-} 
+}

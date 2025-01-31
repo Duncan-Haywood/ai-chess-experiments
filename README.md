@@ -1,6 +1,6 @@
 # Chess Bot Experiments
 
-A chess bot that can play both locally and on Lichess, with a web interface to watch games in real-time.
+A chess bot that plays locally with a web interface to watch games in real-time.
 
 ## Features
 
@@ -9,69 +9,68 @@ A chess bot that can play both locally and on Lichess, with a web interface to w
   - Debug games move by move
   - Experiment with different engine settings
 
-- **Online Play (Lichess)**
-  - Play against other players on Lichess
-  - Track ELO rating and performance
-  - View match history and statistics
-
 - **Web Interface**
-  - Real-time board visualization
-  - Game statistics (time, moves, etc.)
-  - Match history viewer
+  - Real-time board visualization with 250ms polling
+  - Game state tracking
+  - Health checks and automatic reconnection
 
 ## Setup
 
 1. Install dependencies:
 ```bash
+# Backend
+cd backend
 poetry install
+
+# Frontend
+cd ../frontend
+npm install
 ```
 
-2. Set up your environment:
+2. Start the application:
 ```bash
-cp .env.example .env
-# Add your Lichess API token to .env
-```
+# Using Docker Compose (recommended)
+docker compose up --build --detach --watch
 
-3. Start the bot:
-```bash
-# For local self-play with web viewer
-docker compose up chess-bot
+# Or manually:
+# Terminal 1 (Backend)
+cd backend
+poetry run python -m ai_chess_experiments.bot_runner
 
-# For online Lichess games
-docker compose up chess-bot-online
+# Terminal 2 (Frontend)
+cd frontend
+npm run dev
 ```
 
 ## Viewing Games
 
-- Local self-play: http://localhost:8000
-- Online games: http://localhost:8000/online
-- Debug port: 5678 (for VS Code debugging)
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 
 ## API Endpoints
 
-- `/api/games/current` - View active games
-- `/api/games/history` - View past games
-- `/api/stats` - Get bot statistics
-  - ELO rating
-  - Win/loss ratio
-  - Average game length
-  - Most common openings
+- `/health` - Health check endpoint
+- `/api/game` - Get current game state
+- `/api/move/{move_uci}` - Make a move
+- `/api/new_game` - Start a new game
 
 ## Development
 
-- Written in Python with FastAPI
-- Real-time updates via WebSocket
-- Simple web interface with vanilla JS
-- VS Code debugging support
+- Backend: Python with FastAPI
+- Frontend: React with Vite
+- Real-time updates via polling
+- Docker Compose with watch mode and health checks
 
 ## Configuration
 
-Key settings in `.env`:
-```env
-LICHESS_API_TOKEN=your_token_here
-ENGINE_DEPTH=3
-MAX_GAMES=1
-TIME_CONTROL=180,2  # 3min + 2sec increment
+Key settings in `backend/pyproject.toml`:
+```toml
+[tool.poetry.dependencies]
+python = "^3.11"
+python-chess = "^1.999"
+fastapi = "^0.109.0"
+uvicorn = "^0.27.0"
 ```
 
 ## Contributing

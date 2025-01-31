@@ -3,22 +3,19 @@ name = "ai-chess-experiments"
 version = "0.1.0"
 description = "Chess bot experiments"
 authors = ["Duncan Haywood"]
+packages = [
+    { include = "ai_chess_experiments" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
 python-chess = "^1.999"
 fastapi = "^0.109.0"
 uvicorn = "^0.27.0"
-websockets = "^12.0"
-python-dotenv = "^1.0.1"
-rich = "^13.7.0"
-psutil = "^5.9.8"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 black = "^24.1.1"
-debugpy = "^1.8.0"
-watchdog = "^3.0.0"
 
 [build-system]
 requires = ["poetry-core"]

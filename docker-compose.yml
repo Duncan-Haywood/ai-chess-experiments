@@ -1,48 +1,51 @@
 version: '3.8'
 
 services:
-  # Local self-play service with integrated viewer
-  chess-bot:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    restart: unless-stopped
-    volumes:
-      - ./backend:/app:cached
-    environment:
-      - PYTHONUNBUFFERED=1
-      - BOT_MODE=local
-      - PYTHONPATH=/app
-    ports:
-      - "8000:8000"  # For web viewer
-    command: python -m ai_chess_experiments.bot_runner --test
-
-  # Online bot service
-  chess-bot-online:
+  # Chess bot - local mode
+  backend:
     build: 
       context: ./backend
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - path: ./backend
+          target: /app
+          action: sync
     restart: unless-stopped
-    volumes:
-      - ./backend:/app:cached
-      - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
-      - BOT_MODE=online
+      - BOT_MODE=local
     ports:
-      - "8001:8000"  # For web viewer
-    command: python -m ai_chess_experiments.bot_runner
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   # Frontend
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - path: ./frontend
+          target: /app
+          action: sync
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
-    command: npm start 
+      - VITE_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000 || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s 

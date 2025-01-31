@@ -1,46 +1,33 @@
-FROM --platform=linux/arm64 python:3.11-slim as builder
+FROM python:3.11-slim
+
+WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    gcc \
-    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry using pip (more reliable than installer script)
-RUN pip install poetry==1.7.1
+# Install Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 - && \
+    ln -s /root/.local/bin/poetry /usr/local/bin/poetry
 
-# Set working directory
-WORKDIR /app
-
-# Copy project files
+# Copy poetry files
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies
+# Configure poetry and install dependencies
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --no-dev
+    && poetry install --no-interaction --no-ansi --no-root
 
-# Final stage
-FROM --platform=linux/arm64 python:3.11-slim
+# Copy application code
+COPY . .
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Expose port for web viewer
+EXPOSE 8000
 
-WORKDIR /app
-
-# Copy only necessary files
-COPY ai_chess_experiments ./ai_chess_experiments
-COPY .env ./.env
-
-# Set Python to run in optimized mode
-ENV PYTHONOPTIMIZE=1
+# Set environment variables
+ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
-# Run as non-root user for better security
-RUN useradd -m -u 1000 bot
-USER bot
-
-# Run the bot
-CMD ["python", "-OO", "ai_chess_experiments/bot_runner.py"] 
+# Default command (can be overridden)
+CMD ["python", "-m", "ai_chess_experiments.bot_runner", "--test"] 

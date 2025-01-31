@@ -1,3 +1,4 @@
+
 # Python
 __pycache__/
 *.py[cod]
@@ -20,21 +21,32 @@ wheels/
 .installed.cfg
 *.egg
 
-# Environment
+# Virtual environments
 .env
 .venv
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# OS
 .DS_Store
-Thumbs.db 
-# node_modules
-node_modules/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+
+# Misc
+.git
+.gitignore
+README.md
+Dockerfile
+docker-compose.yml
