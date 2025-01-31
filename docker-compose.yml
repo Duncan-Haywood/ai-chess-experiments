@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  chess-bot:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/arm64
+    container_name: chess-bot
+    restart: unless-stopped
+    volumes:
+      # Mount the source code for development
+      - ./ai_chess_experiments:/app/ai_chess_experiments:ro
+      # Mount .env file
+      - ./.env:/app/.env:ro
+      # Mount logs directory
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Use Metal for numpy operations
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+    # Resource limits optimized for M3
+    deploy:
+      resources:
+        limits:
+          # Use up to 4 performance cores
+          cpus: '4'
+          # Use up to 8GB RAM
+          memory: 8G
+        reservations:
+          # Guarantee at least 1 efficiency core
+          cpus: '1'
+          # Guarantee at least 1GB RAM
+          memory: 1G
+    # Healthcheck to ensure the bot is running
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[p]ython' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Use host network for better performance
+    network_mode: host
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3" 
