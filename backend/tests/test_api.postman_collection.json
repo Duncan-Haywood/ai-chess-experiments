@@ -1,0 +1,278 @@
+{
+	"info": {
+		"_postman_id": "chess-api-tests",
+		"name": "Chess API Tests",
+		"description": "Tests for the Chess Game API endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has status field', function () {",
+							"    const response = pm.response.json();",
+							"    pm.expect(response).to.have.property('status');",
+							"    pm.expect(response.status).to.equal('healthy');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": ["{{baseUrl}}"],
+					"path": ["health"]
+				}
+			}
+		},
+		{
+			"name": "New Game",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has required fields', function () {",
+							"    const response = pm.response.json();",
+							"    pm.expect(response).to.have.property('success');",
+							"    pm.expect(response).to.have.property('mode');",
+							"    pm.expect(response).to.have.property('white_depth');",
+							"    pm.expect(response).to.have.property('black_depth');",
+							"    pm.expect(response).to.have.property('white_engine');",
+							"    pm.expect(response).to.have.property('black_engine');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/new_game?mode=human_vs_bot&white_depth_param=3&black_depth_param=3",
+					"host": ["{{baseUrl}}"],
+					"path": ["new_game"],
+					"query": [
+						{
+							"key": "mode",
+							"value": "human_vs_bot"
+						},
+						{
+							"key": "white_depth_param",
+							"value": "3"
+						},
+						{
+							"key": "black_depth_param",
+							"value": "3"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Get Game State",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has required game state fields', function () {",
+							"    const response = pm.response.json();",
+							"    pm.expect(response).to.have.property('fen');",
+							"    pm.expect(response).to.have.property('whiteTime');",
+							"    pm.expect(response).to.have.property('blackTime');",
+							"    pm.expect(response).to.have.property('status');",
+							"    pm.expect(response).to.have.property('gameMode');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/game",
+					"host": ["{{baseUrl}}"],
+					"path": ["game"]
+				}
+			}
+		},
+		{
+			"name": "Make Move",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has required move fields', function () {",
+							"    const response = pm.response.json();",
+							"    pm.expect(response).to.have.property('success');",
+							"    pm.expect(response).to.have.property('playerMove');",
+							"    pm.expect(response).to.have.property('gameState');",
+							"});",
+							"",
+							"pm.test('Game state has required fields', function () {",
+							"    const gameState = pm.response.json().gameState;",
+							"    pm.expect(gameState).to.have.property('fen');",
+							"    pm.expect(gameState).to.have.property('whiteTime');",
+							"    pm.expect(gameState).to.have.property('blackTime');",
+							"    pm.expect(gameState).to.have.property('status');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"from\": \"e2\",\n    \"to\": \"e4\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/move",
+					"host": ["{{baseUrl}}"],
+					"path": ["move"]
+				}
+			}
+		},
+		{
+			"name": "Set Engine Type",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has required fields', function () {",
+							"    const response = pm.response.json();",
+							"    pm.expect(response).to.have.property('success');",
+							"    pm.expect(response).to.have.property('white_engine');",
+							"    pm.expect(response).to.have.property('black_engine');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/set_engine?white=minimax&black=minimax",
+					"host": ["{{baseUrl}}"],
+					"path": ["set_engine"],
+					"query": [
+						{
+							"key": "white",
+							"value": "minimax"
+						},
+						{
+							"key": "black",
+							"value": "minimax"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Set Search Depth",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has required fields', function () {",
+							"    const response = pm.response.json();",
+							"    pm.expect(response).to.have.property('success');",
+							"    pm.expect(response).to.have.property('white_depth');",
+							"    pm.expect(response).to.have.property('black_depth');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/set_depth?white=3&black=3",
+					"host": ["{{baseUrl}}"],
+					"path": ["set_depth"],
+					"query": [
+						{
+							"key": "white",
+							"value": "3"
+						},
+						{
+							"key": "black",
+							"value": "3"
+						}
+					]
+				}
+			}
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set environment variables if not already set",
+					"if (!pm.environment.get('baseUrl')) {",
+					"    pm.environment.set('baseUrl', 'http://localhost:8000');",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+} 
