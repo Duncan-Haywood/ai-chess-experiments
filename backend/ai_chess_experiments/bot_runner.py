@@ -1,5 +1,6 @@
 import chess
 import time
+import os
 from typing import Optional, Dict, Any, List
 from utils.lichess_client import LichessClient
 from utils.game_viewer import GameViewer
@@ -18,7 +19,7 @@ class BotRunner:
         self.engine = engine
         self.client = client or LichessClient()
         self.viewer = GameViewer()
-        self.dashboard = Dashboard()
+        self.dashboard = Dashboard(port=8000)
         
         # Start dashboard in a separate thread
         self.dashboard_thread = threading.Thread(target=self.dashboard.run, daemon=True)
@@ -37,9 +38,10 @@ class BotRunner:
         self.seek_interval = 30  # Minimum seconds between seeks
         self.max_rating_diff = 500  # Maximum rating difference to accept
         
-        # Testing mode
-        self.is_testing = False
-        self.test_game_board = None
+        # Mode settings
+        self.mode = os.environ.get('BOT_MODE', 'online')
+        self.is_testing = self.mode == 'local'
+        self.test_game_board = None if not self.is_testing else chess.Board()
     
     def should_accept_challenge(self, challenge: Dict[str, Any]) -> bool:
         """Determine whether to accept a challenge based on time control and current load."""
@@ -272,11 +274,12 @@ class BotRunner:
     
     def run(self, test_mode: bool = False):
         """Main bot loop - handle events and play games."""
-        if test_mode:
+        if test_mode or self.mode == 'local':
+            print("Starting bot in local mode...")
             self.start_self_play_test()
             return
             
-        print("Starting bot...")
+        print("Starting bot in online mode...")
         account = self.client.get_account()
         print(f"Bot account: {account.get('username')}")
         print(f"Rating: {account.get('rating', {}).get('classical', 'Unrated')}")

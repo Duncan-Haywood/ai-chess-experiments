@@ -22,8 +22,8 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 
-# Install development tools
-RUN pip install debugpy watchdog[watchmedo]
+# Install additional development tools
+RUN pip install debugpy watchdog[watchmedo] psutil rich prometheus_client
 
 # Copy the rest of the application
 COPY . .
@@ -32,6 +32,8 @@ COPY . .
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONDEVMODE=1
+ENV PYDEVD_DISABLE_FILE_VALIDATION=1
 
 # Default command (can be overridden in docker-compose)
 CMD ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "ai_chess_experiments/bot_runner.py"] 
