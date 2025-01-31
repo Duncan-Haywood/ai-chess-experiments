@@ -2,10 +2,10 @@ import chess
 import time
 import os
 from typing import Optional, Dict, Any, List
-from utils.lichess_client import LichessClient
-from utils.game_viewer import GameViewer
-from utils.dashboard import Dashboard
-from engines.base_engine import BaseChessEngine
+from ai_chess_experiments.utils.lichess_client import LichessClient
+from ai_chess_experiments.utils.game_viewer import GameViewer
+from ai_chess_experiments.utils.dashboard import Dashboard
+from ai_chess_experiments.engines.base_engine import BaseChessEngine
 import threading
 
 class BotRunner:
@@ -298,7 +298,7 @@ class BotRunner:
 
 def main():
     """Run the bot with the minimax engine."""
-    from engines.minimax_engine import MinimaxEngine
+    from ai_chess_experiments.engines.minimax_engine import MinimaxEngine
     import sys
     
     # Create engine with depth 3 (adjust based on your machine's performance)
