@@ -1,0 +1,37 @@
+FROM --platform=linux/arm64 python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    gcc \
+    python3-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install poetry==1.7.1
+
+# Set working directory
+WORKDIR /app
+
+# Copy project files
+COPY pyproject.toml poetry.lock ./
+
+# Install dependencies including dev dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi
+
+# Install development tools
+RUN pip install debugpy watchdog[watchmedo]
+
+# Copy the rest of the application
+COPY . .
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Default command (can be overridden in docker-compose)
+CMD ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "ai_chess_experiments/bot_runner.py"] 

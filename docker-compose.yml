@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     platform: linux/arm64
-    container_name: chess-bot
+    # Remove container_name to allow scaling
     restart: unless-stopped
     volumes:
       # Mount the source code for development
@@ -21,6 +21,11 @@ services:
       - PYTORCH_ENABLE_MPS_FALLBACK=1
     # Resource limits optimized for M3
     deploy:
+      replicas: 2  # Run two instances
+      update_config:
+        order: start-first  # Start new container before stopping old one
+        failure_action: rollback
+        delay: 10s  # Wait between updates
       resources:
         limits:
           # Use up to 4 performance cores
@@ -38,8 +43,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    # Use host network for better performance
-    network_mode: host
+      start_period: 20s  # Give container time to start up
     # Security options
     security_opt:
       - no-new-privileges:true
@@ -48,4 +52,31 @@ services:
       driver: "json-file"
       options:
         max-size: "100m"
-        max-file: "3" 
+        max-file: "3"
+
+  # Development service with hot reloading
+  chess-bot-dev:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    platform: linux/arm64
+    container_name: chess-bot-dev
+    volumes:
+      # Mount the entire source code for development
+      - .:/app:cached
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+      - ENVIRONMENT=development
+      - PYTHONPATH=/usr/local/lib/python3.11/site-packages:/app
+    # No resource limits in dev for faster compilation
+    ports:
+      - "5678:5678"  # For debugger
+    # Run with hot reloading and debugger
+    command: python -m debugpy --listen 0.0.0.0:5678 ai_chess_experiments/bot_runner.py
+    # Development-specific logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "1" 

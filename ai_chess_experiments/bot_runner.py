@@ -3,7 +3,9 @@ import time
 from typing import Optional, Dict, Any, List
 from utils.lichess_client import LichessClient
 from utils.game_viewer import GameViewer
+from utils.dashboard import Dashboard
 from engines.base_engine import BaseChessEngine
+import threading
 
 class BotRunner:
     def __init__(self, engine: BaseChessEngine, client: Optional[LichessClient] = None):
@@ -16,10 +18,15 @@ class BotRunner:
         self.engine = engine
         self.client = client or LichessClient()
         self.viewer = GameViewer()
+        self.dashboard = Dashboard()
+        
+        # Start dashboard in a separate thread
+        self.dashboard_thread = threading.Thread(target=self.dashboard.run, daemon=True)
+        self.dashboard_thread.start()
         
         # Time control preferences
-        self.min_time = 60  # Minimum game time (1 minute)
-        self.max_time = 240  # Maximum game time (4 minutes)
+        self.min_time = 30  # Minimum game time (30 seconds)
+        self.max_time = 180  # Maximum game time (3 minutes)
         self.min_increment = 0  # Minimum increment
         self.max_increment = 2  # Maximum increment
         
@@ -29,11 +36,19 @@ class BotRunner:
         self.last_seek_time = 0  # Last time we created a seek
         self.seek_interval = 30  # Minimum seconds between seeks
         self.max_rating_diff = 500  # Maximum rating difference to accept
+        
+        # Testing mode
+        self.is_testing = False
+        self.test_game_board = None
     
     def should_accept_challenge(self, challenge: Dict[str, Any]) -> bool:
         """Determine whether to accept a challenge based on time control and current load."""
         if challenge['variant']['key'] != 'standard':
             return False
+        
+        # Accept all challenges in testing mode
+        if self.is_testing:
+            return True
         
         # Check if we're at max games
         if len(self.active_games) >= self.max_concurrent_games:
@@ -56,6 +71,9 @@ class BotRunner:
     
     def create_seek(self):
         """Create a new game seek if conditions are met."""
+        if self.is_testing:
+            return
+            
         current_time = time.time()
         
         # Check if we can create a new seek
@@ -73,6 +91,53 @@ class BotRunner:
             except Exception as e:
                 print(f"Error creating seek: {e}")
     
+    def start_self_play_test(self):
+        """Start a self-play test game."""
+        self.is_testing = True
+        self.test_game_board = chess.Board()
+        print("\nStarting self-play test game...")
+        self.handle_test_game()
+    
+    def handle_test_game(self):
+        """Handle moves for a self-play test game."""
+        while not self.test_game_board.is_game_over():
+            # Display current position
+            self.viewer.display_game(
+                board=self.test_game_board,
+                white_time=180,  # 3 minutes per side for testing
+                black_time=180,
+                last_move=self.test_game_board.peek().uci() if self.test_game_board.move_stack else None,
+                white_name="Minimax (White)",
+                black_name="Minimax (Black)"
+            )
+            
+            # Calculate and make move
+            try:
+                move = self.engine.get_move()
+                print(f"\nMaking move: {move.uci()}")
+                self.test_game_board.push(move)
+                time.sleep(0.5)  # Add delay to make it easier to follow
+            except Exception as e:
+                print(f"Error making move: {e}")
+                break
+        
+        # Display final position
+        self.viewer.display_game(
+            board=self.test_game_board,
+            white_time=180,
+            black_time=180,
+            last_move=self.test_game_board.peek().uci() if self.test_game_board.move_stack else None,
+            white_name="Minimax (White)",
+            black_name="Minimax (Black)"
+        )
+        
+        print("\nGame Over!")
+        print(f"Result: {self.test_game_board.result()}")
+        print(f"Move count: {len(self.test_game_board.move_stack)}")
+        
+        self.is_testing = False
+        self.test_game_board = None
+
     def handle_challenge(self, event):
         """Handle an incoming challenge."""
         challenge = event['challenge']
@@ -94,6 +159,7 @@ class BotRunner:
         """Handle game end cleanup."""
         if game_id in self.active_games:
             self.active_games.remove(game_id)
+            self.dashboard.remove_game(game_id)
             print(f"\nGame {game_id} ended. Active games: {len(self.active_games)}")
     
     def calculate_move_time(self, remaining_time: float, increment: float, position: chess.Board) -> float:
@@ -126,6 +192,14 @@ class BotRunner:
         black_time = state.get('btime', 0) / 1000
         increment = state.get('winc' if our_color else 'binc', 0) / 1000
         
+        # Update dashboard with game info
+        self.dashboard.update_game(game_id, {
+            'opponent': state.get('opponent', {}).get('username', 'Unknown'),
+            'time_control': f"{white_time:.1f}s W / {black_time:.1f}s B",
+            'last_move': last_move or '-',
+            'status': 'Active'
+        })
+        
         # Display current position
         self.viewer.display_game(
             board=board,
@@ -142,8 +216,14 @@ class BotRunner:
             move_time = self.calculate_move_time(our_time, increment, board)
             
             try:
+                start_time = time.time()
                 move = self.engine.get_move()
-                print(f"\nMaking move: {move.uci()} (time allocated: {move_time:.1f}s)")
+                actual_time = time.time() - start_time
+                
+                # Record move timing
+                self.dashboard.record_move(actual_time)
+                
+                print(f"\nMaking move: {move.uci()} (time allocated: {move_time:.1f}s, actual: {actual_time:.1f}s)")
                 self.client.make_move(game_id, move)
                 return move.uci()
             except Exception as e:
@@ -190,8 +270,12 @@ class BotRunner:
             print(f"Error in game {game_id}: {e}")
             self.handle_game_end(game_id)
     
-    def run(self):
+    def run(self, test_mode: bool = False):
         """Main bot loop - handle events and play games."""
+        if test_mode:
+            self.start_self_play_test()
+            return
+            
         print("Starting bot...")
         account = self.client.get_account()
         print(f"Bot account: {account.get('username')}")
@@ -212,13 +296,17 @@ class BotRunner:
 def main():
     """Run the bot with the minimax engine."""
     from engines.minimax_engine import MinimaxEngine
+    import sys
     
     # Create engine with depth 3 (adjust based on your machine's performance)
     engine = MinimaxEngine(depth=3)
     runner = BotRunner(engine)
     
+    # Check for test mode
+    test_mode = '--test' in sys.argv
+    
     try:
-        runner.run()
+        runner.run(test_mode=test_mode)
     except KeyboardInterrupt:
         print("\nBot stopped by user")
     except Exception as e:
