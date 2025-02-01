@@ -36,8 +36,8 @@ docker_build(
 )
 
 # Deploy using Helm charts
-k8s_yaml(helm('./charts/frontend', name='frontend'))
-k8s_yaml(helm('./charts/backend', name='backend'))
+k8s_yaml(str(local('helm template frontend ./charts/frontend')))
+k8s_yaml(str(local('helm template backend ./charts/backend')))
 
 # Configure port forwards
 k8s_resource('frontend', port_forwards='5173:5173')
