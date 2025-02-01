@@ -35,6 +35,9 @@ docker_build(
     ]
 )
 
+# Allow minikube context
+allow_k8s_contexts('minikube')
+
 # Deploy using Helm charts
 k8s_yaml(str(local('helm template frontend ./charts/frontend')))
 k8s_yaml(str(local('helm template backend ./charts/backend')))
