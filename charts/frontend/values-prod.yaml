@@ -1,0 +1,41 @@
+replicaCount: 2
+
+image:
+  repository: frontend
+  pullPolicy: Always
+  tag: "latest"  # This should be overridden during deployment with actual version
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: chess.yourdomain.com  # Replace with actual domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: chess-tls
+      hosts:
+        - chess.yourdomain.com  # Replace with actual domain
+
+env:
+  - name: VITE_API_URL
+    value: "https://api.chess.yourdomain.com"  # Replace with actual domain
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80 
