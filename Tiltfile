@@ -1,64 +1,71 @@
 # -*- mode: Python -*-
 
-load('ext://helm_resource', 'helm_resource', 'helm_repo')
+# Load required extensions
+load('ext://helm_resource', 'helm_resource')
 load('ext://docker', 'docker_build')
+load('ext://uibutton', 'cmd_button', 'location')
 load('ext://local_resource', 'local_resource')
-load('ext://live_update', 'sync', 'run')
-load('ext://probe', 'probe')
-load('ext://http_get_action', 'http_get_action')
 
-# Frontend
+# Cleanup old containers before starting
+local_resource(
+    name='cleanup',
+    cmd='docker ps -aq | xargs docker rm -f || true',
+    auto_init=True,
+)
+
+# Build images
 docker_build(
-    'frontend',
+    'chess-bot-frontend',
     context='./frontend',
     dockerfile='./frontend/Dockerfile',
     target='development',
     live_update=[
         sync('./frontend/src', '/app/src'),
         sync('./frontend/public', '/app/public'),
-        run('cd /app && yarn install', trigger=['./frontend/package.json', './frontend/yarn.lock']),
     ]
 )
 
-# Backend
 docker_build(
-    'backend',
+    'chess-bot-backend',
     context='./backend',
     dockerfile='./backend/Dockerfile',
     target='development',
     live_update=[
         sync('./backend', '/app'),
-        run('cd /app && poetry install', trigger=['./backend/pyproject.toml', './backend/poetry.lock']),
     ]
 )
 
 # Deploy Helm charts
-helm_resource(
+k8s_yaml('k8s/frontend.yaml')
+k8s_yaml('k8s/backend.yaml')
+
+# Configure resources
+k8s_resource(
     'frontend',
-    chart='./charts/frontend',
-    flags=[
-        '--values=./charts/frontend/values.yaml',
-    ],
-    image_deps=['frontend'],
-    image_keys=[('image.repository', 'image.tag')],
-    port_forwards=['5173:3000']
+    port_forwards='5173:5173',
+    resource_deps=['backend'],
 )
 
-helm_resource(
+k8s_resource(
     'backend',
-    chart='./charts/backend',
-    flags=[
-        '--values=./charts/backend/values.yaml',
-    ],
-    image_deps=['backend'],
-    image_keys=[('image.repository', 'image.tag')],
-    resource_deps=['frontend'],
-    port_forwards=['8000:8000']
+    port_forwards='8000:8000',
+)
+
+# Health check commands
+local_resource(
+    name='health-check',
+    cmd='''
+    echo "Checking frontend..." && \
+    curl -s -o /dev/null -w "%{http_code}" http://localhost:5173 && \
+    echo "\nChecking backend..." && \
+    curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health
+    ''',
+    auto_init=False,
 )
 
 # Development tools
 local_resource(
-    'backend-tests',
+    name='backend-tests',
     cmd='cd backend && poetry run pytest',
     deps=['./backend'],
     ignore=['./backend/**/__pycache__'],
@@ -66,7 +73,7 @@ local_resource(
 )
 
 local_resource(
-    'frontend-tests',
+    name='frontend-tests',
     cmd='cd frontend && yarn test',
     deps=['./frontend/src'],
     ignore=['./frontend/node_modules'],
@@ -74,7 +81,7 @@ local_resource(
 )
 
 local_resource(
-    'backend-lint',
+    name='backend-lint',
     cmd='cd backend && poetry run mypy .',
     deps=['./backend'],
     ignore=['./backend/**/__pycache__'],
@@ -82,9 +89,14 @@ local_resource(
 )
 
 local_resource(
-    'frontend-lint',
+    name='frontend-lint',
     cmd='cd frontend && yarn lint',
     deps=['./frontend/src'],
     ignore=['./frontend/node_modules'],
     auto_init=False,
+)
+
+# Watch settings
+watch_settings(
+    ignore=['./frontend/node_modules', './backend/**/__pycache__']
 )
