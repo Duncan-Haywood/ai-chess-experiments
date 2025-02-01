@@ -4,6 +4,8 @@ load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://docker', 'docker_build')
 load('ext://local_resource', 'local_resource')
 load('ext://live_update', 'sync', 'run')
+load('ext://probe', 'probe')
+load('ext://http_get_action', 'http_get_action')
 
 # Frontend
 docker_build(
