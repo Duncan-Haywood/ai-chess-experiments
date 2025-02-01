@@ -35,21 +35,16 @@ docker_build(
     ]
 )
 
-# Deploy Helm charts
-k8s_yaml('k8s/frontend.yaml')
-k8s_yaml('k8s/backend.yaml')
+# Allow minikube context
+allow_k8s_contexts('minikube')
 
-# Configure resources
-k8s_resource(
-    'frontend',
-    port_forwards='5173:5173',
-    resource_deps=['backend'],
-)
+# Deploy using Helm charts
+k8s_yaml(str(local('helm template frontend ./charts/frontend')))
+k8s_yaml(str(local('helm template backend ./charts/backend')))
 
-k8s_resource(
-    'backend',
-    port_forwards='8000:8000',
-)
+# Configure port forwards
+k8s_resource('frontend', port_forwards='5173:5173')
+k8s_resource('backend', port_forwards='8000:8000')
 
 # Health check commands
 local_resource(
