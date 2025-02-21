@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import chess
 import time
 from typing import Optional, Tuple, Any, Dict, TypedDict
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class EngineMetrics(TypedDict):
     nodes_searched: int
@@ -44,20 +45,27 @@ class BaseChessEngine(ABC):
         self.level = level if level is not None else info['default']
         
         # Initialize metrics
-        self.nodes_searched: int = 0
-        self.current_depth: int = 0
-        self.last_move_time: float = 0.0
-        self.total_time: float = 0.0
-        self.move_count: int = 0
+        self.nodes_searched = self.current_depth = self.move_count = 0
+        self.last_move_time = self.total_time = 0.0
     
     @classmethod
     def is_available(cls) -> bool:
         """Check if the engine is available on the system."""
         return True  # Default implementation returns True
     
-    @abstractmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((chess.engine.EngineError, TimeoutError, ConnectionError)),
+        reraise=True
+    )
     async def get_move(self, board: chess.Board) -> Tuple[chess.Move, float]:
         """Get the next move and evaluation score for the given board position.
+        
+        This method is wrapped with retry logic to handle transient failures:
+        - Retries up to 3 times
+        - Uses exponential backoff between retries (4-10 seconds)
+        - Only retries on specific engine-related errors
         
         Args:
             board: The current chess board position
@@ -66,10 +74,14 @@ class BaseChessEngine(ABC):
             A tuple containing:
             - The chosen move
             - The evaluation score (positive for white advantage, negative for black)
+            
+        Raises:
+            Exception: If move generation fails after all retries
         """
+        self.board = board.copy()
+        
         # Reset metrics for new move calculation
-        self.nodes_searched = 0
-        self.current_depth = 0
+        self.nodes_searched = self.current_depth = 0
         start_time = time.time()
         
         try:

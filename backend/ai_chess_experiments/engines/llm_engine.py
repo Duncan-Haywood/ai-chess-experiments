@@ -5,6 +5,28 @@ import asyncio
 from typing import Optional, Tuple
 from .base_engine import BaseChessEngine
 
+openai_models = [
+    "gpt-4o",
+    "chatgpt-4o-latest",
+    "o1",
+    "o3-mini"  
+]
+deepseek_models = [
+    "deepseek-chat",
+    "deepseek-reasoner"
+]
+google_models = [
+    "gemini-2.0-flash",
+    "gemini-2.0-pro-exp-02-05",
+    "gemini-2.0-flash-thinking-exp-01-21"
+]
+anthropic_models = [
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-haiku-latest",
+    "claude-3-opus-latest"
+]
+
+
 
 class LLMEngine(BaseChessEngine):
     """
@@ -31,35 +53,51 @@ class LLMEngine(BaseChessEngine):
         board_fen = board.fen()
         legal_moves = list(board.legal_moves)
         legal_moves_uci = ', '.join(move.uci() for move in legal_moves)
+        game_pgn = str(board.game())  # Get game history in PGN format
+        
+        # Construct prompt for LLM
         prompt = (
             f"You are a chess engine. Given the board in FEN '{board_fen}' "
-            f"with legal moves: {legal_moves_uci}, return the best move in UCI format only."
+            f"with legal moves: {legal_moves_uci}. "
+            f"Game history (PGN): {game_pgn}. "
+            f"Return the best move in UCI format."
         )
 
-        # Call the LLM using OpenAI's API in a thread
-        response = await asyncio.to_thread(
-            openai.ChatCompletion.create,
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a chess engine specialized in selecting the best move given a FEN and legal moves."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=10,
-            n=1,
-            temperature=0
-        )
+        # Helper function to extract and validate move
+        async def extract_move_from_response(response_text: str, legal_moves_uci: str) -> str:
+            extraction_prompt = (
+                f"You are a chess move extractor. Extract only the UCI format move from the final decision of the message.Extract only the chess move in UCI format (e.g. 'e2e4' or 'e7e8q') from this response: '{response_text}'. "
+                "Return only the move, nothing else. If no valid UCI move is found, return 'INVALID'."
+            )
+            
+            # Get move extraction from LLM
+            extraction_response = await asyncio.to_thread(
+                openai.ChatCompletion.create,
+                model="gpt-4o",
+                messages=[
+                    {"role": "user", "content": extraction_prompt}
+                ],
+                max_tokens=10,
+                temperature=0
+            )
+            
+            extracted_move = extraction_response['choices'][0]['message']['content'].strip().lower()
+            
+            # Validate extracted move
+            if extracted_move == "invalid":
+                raise ValueError(f"Could not find valid UCI move in response: {response_text}")
+                
+            try:
+                chess.Move.from_uci(extracted_move)
+            except ValueError:
+                raise ValueError(f"Extracted move '{extracted_move}' is not a valid UCI move.")
+                
+            legal_moves_list = [m.strip() for m in legal_moves_uci.split(',')]
+            if extracted_move not in legal_moves_list:
+                raise ValueError(f"Extracted move '{extracted_move}' is not in legal moves: {legal_moves_uci}")
+                
+            return extracted_move
 
-        # Extract the move string from the response
-        move_str = response['choices'][0]['message']['content'].strip()
-
-        try:
-            move = chess.Move.from_uci(move_str)
-        except Exception as e:
-            raise RuntimeError(f"LLM returned an invalid move: {move_str}")
-
-        # Return the move with a default evaluation score of 0.0
-        return move, 0.0
-
-    async def cleanup(self) -> None:
-        """Cleanup resources for the LLM engine (none needed currently)."""
-        pass 
+        # Using Python's built-in functools for retry decorator
+        from functools import wraps
+        import random

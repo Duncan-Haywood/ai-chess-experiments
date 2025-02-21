@@ -1,3 +1,10 @@
+"""Chess Engine API Server
+
+This module implements a FastAPI server that manages chess games between human players and AI engines.
+It supports multiple chess engines (Minimax and Stockfish) and provides endpoints for game management,
+move execution, and engine metrics collection.
+"""
+
 import chess
 import time
 import logging
@@ -16,6 +23,24 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 class GameState(TypedDict):
+    """Represents the complete state of a chess game.
+    
+    Attributes:
+        board: Current chess board state
+        engine: Primary chess engine (usually white)
+        engine2: Secondary chess engine (usually black)
+        game_mode: Mode of play (e.g., "human_vs_bot", "bot_vs_bot")
+        game_start_time: Unix timestamp of game start
+        white_time: Remaining time for white player
+        black_time: Remaining time for black player
+        last_move_time: Timestamp of the last move
+        white_depth: Search depth for white's engine
+        black_depth: Search depth for black's engine
+        white_engine_type: Type of engine used for white
+        black_engine_type: Type of engine used for black
+        move_times: List of time taken for each move
+        engine_metrics: Performance metrics for the engines
+    """
     board: chess.Board
     engine: BaseChessEngine
     engine2: BaseChessEngine
@@ -32,6 +57,15 @@ class GameState(TypedDict):
     engine_metrics: EngineMetrics
 
 class EngineMetrics(TypedDict):
+    """Performance metrics for chess engines.
+    
+    Attributes:
+        nodes_searched: Total number of nodes explored
+        depth_reached: Maximum depth reached in search
+        time_taken: Time spent on move calculation
+        memory_used: Memory consumption in bytes
+        cpu_percent: CPU utilization percentage
+    """
     nodes_searched: int
     depth_reached: int
     time_taken: float
@@ -53,7 +87,18 @@ app.add_middleware(
 games: Dict[str, GameState] = {}
 
 async def create_engine(engine_type: str, depth: int) -> BaseChessEngine:
-    """Create a chess engine based on the specified type."""
+    """Create a chess engine instance of the specified type.
+    
+    Args:
+        engine_type: Type of engine to create ('minimax' or 'stockfish')
+        depth: Search depth for the engine
+        
+    Returns:
+        An instance of the specified chess engine
+        
+    Raises:
+        ValueError: If engine_type is unknown or unavailable
+    """
     try:
         logger.debug("Creating %s engine with depth %d", engine_type, depth)
         if engine_type == 'minimax':
@@ -67,7 +112,11 @@ async def create_engine(engine_type: str, depth: int) -> BaseChessEngine:
         raise
 
 async def cleanup_engine(engine: Optional[BaseChessEngine]):
-    """Safely cleanup an engine instance."""
+    """Safely cleanup and release resources used by a chess engine.
+    
+    Args:
+        engine: The chess engine instance to cleanup, or None
+    """
     if engine:
         try:
             await engine.cleanup()
@@ -79,7 +128,20 @@ async def create_game_state(
     white_depth: Optional[int] = None,
     black_depth: Optional[int] = None
 ) -> str:
-    """Create a new game state and return its ID."""
+    """Create a new chess game state.
+    
+    Args:
+        mode: Game mode ('human_vs_bot' or 'bot_vs_bot')
+        white_depth: Search depth for white's engine (default: 3)
+        black_depth: Search depth for black's engine (default: 3)
+        
+    Returns:
+        UUID string identifying the new game
+        
+    Note:
+        Creates two engine instances (one for each player) and initializes
+        the game state with default metrics and timing information.
+    """
     game_id = str(uuid.uuid4())
     board = chess.Board()
     

@@ -1,62 +1,22 @@
-from typing import Optional, Tuple, cast, Any, Dict, ClassVar
+from typing import Optional, Tuple, Any, Dict, ClassVar
 import chess
 import chess.engine
 import asyncio
 import os
 from pathlib import Path
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .base_engine import BaseChessEngine
 
 class StockfishNNUEEngine(BaseChessEngine):
     """Chess engine using Stockfish with NNUE evaluation.
     
-    The Stockfish NNUE engine combines traditional alpha-beta search with an efficiently
-    updatable neural network for position evaluation. This creates a powerful hybrid
-    that maintains the tactical strength of classical engines while adding sophisticated
-    positional understanding.
-    
-    Key Components:
-    1. NNUE (Efficiently Updatable Neural Network):
-       - A specialized neural network architecture that can be incrementally updated
-       - Input features are based on piece positions and relationships
-       - Hidden layers capture complex positional patterns
-       - Output provides a refined evaluation score
-    
-    2. Alpha-Beta Search:
-       - Depth-first tree search examining possible moves and responses
-       - Pruning of branches that cannot affect the final decision
-       - Typically searches 20-30 ply deep in middlegame positions
-    
-    3. Advanced Search Techniques:
-       - Null Move Pruning: Skip moves to prove positions are already good/bad
-       - Late Move Reduction: Search less promising moves with reduced depth
-       - Futility Pruning: Skip moves unlikely to improve position
-       - Multi-PV: Consider multiple promising variations
-    
-    4. Move Ordering Optimizations:
-       - Hash Move: Best move from previous searches
-       - Killer Moves: Good moves found at same depth
-       - Counter Moves: Moves that historically refute opponent moves
-       - History Heuristics: Statistical tracking of move strength
-    
-    The engine uses these components together to:
-    1. Generate all legal moves in a position
-    2. Order moves by likelihood of being best
-    3. Search deeply along promising variations
-    4. Evaluate positions using the NNUE network
-    5. Back up scores through the game tree
-    6. Select the move leading to best evaluated position
-    
-    Strengths:
-    - Extremely strong tactical and positional play
-    - Efficient evaluation of positions
-    - Strong endgame play with tablebase support
-    
-    Weaknesses:
-    - High computational requirements
-    - Complex configuration needed for optimal performance
+    Combines alpha-beta search with neural network evaluation:
+    - NNUE for efficient position evaluation
+    - Alpha-beta search with advanced pruning
+    - Strong tactical and positional play
+    - Configurable search depth (1-30)
     """
     
-    # Class-level constants for level configuration
     MIN_DEPTH: ClassVar[int] = 1
     MAX_DEPTH: ClassVar[int] = 30
     DEFAULT_DEPTH: ClassVar[int] = 20
@@ -86,91 +46,83 @@ class StockfishNNUEEngine(BaseChessEngine):
             )
         }
     
+    @classmethod
+    def get_engine_info(cls) -> Dict[str, Any]:
+        return {
+            "name": "Stockfish NNUE",
+            "version": "16",
+            "author": "The Stockfish Team",
+            "min_level": cls.MIN_DEPTH,
+            "max_level": cls.MAX_DEPTH,
+            "default_level": cls.DEFAULT_DEPTH
+        }
+
     def __init__(self, level: Optional[int] = None):
-        """Initialize the Stockfish NNUE engine.
-        
-        Args:
-            level: Search depth in plies (1-30). Higher values give stronger
-                  but slower play. Default is 20.
-        """
         super().__init__(level)
-        self.engine: Optional[chess.engine.Protocol] = None
-        self.transport: Optional[asyncio.SubprocessTransport] = None
+        self.engine = self.transport = None
+        self.depth = min(max(level or self.DEFAULT_DEPTH, self.MIN_DEPTH), self.MAX_DEPTH)
         
-        # Path to Stockfish executable - you'll need to download this separately
         stockfish_path = Path(__file__).parent.parent.parent / "engines" / "stockfish"
         if not stockfish_path.exists():
-            raise FileNotFoundError(f"Stockfish executable not found at {stockfish_path}")
+            raise FileNotFoundError(f"Stockfish not found at {stockfish_path}")
         self.engine_path = str(stockfish_path)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((chess.engine.EngineError, TimeoutError, ConnectionError))
+    )
     async def initialize(self):
-        """Initialize the Stockfish engine with NNUE evaluation"""
-        if self.engine is None:
-            transport, engine = await chess.engine.popen_uci(self.engine_path)
-            self.transport = transport
-            self.engine = engine
-            
-            # Enable NNUE evaluation
-            if self.engine:
-                await self.engine.configure({"Use NNUE": True})
-            
+        """Initialize Stockfish with retry on failures."""
+        try:
+            self.transport, self.engine = await chess.engine.popen_uci(self.engine_path)
+            await self.engine.configure({
+                "Hash": 128,
+                "Threads": os.cpu_count() or 1,
+                "UCI_LimitStrength": True,
+                "UCI_Elo": 1500 + (self.depth * 100)
+            })
+        except Exception as e:
+            if self.transport:
+                self.transport.close()
+            raise chess.engine.EngineError(f"Failed to initialize Stockfish: {e}")
+
     async def get_move(self, board: chess.Board) -> Tuple[chess.Move, float]:
-        """Get the best move and evaluation from Stockfish NNUE.
-        
-        The evaluation process:
-        1. Search game tree to specified depth
-        2. Use NNUE network to evaluate leaf positions
-        3. Back up scores through alpha-beta search
-        4. Return best move and evaluation
-        
-        Args:
-            board: Current chess position to evaluate
-            
-        Returns:
-            Tuple containing:
-            - The best move found
-            - Position evaluation in pawns (positive for white, negative for black)
-              Typical range is -5 to 5, with larger values indicating decisive advantage
-        
-        Raises:
-            RuntimeError: If engine fails to initialize or find a move
-        """
-        if self.engine is None:
-            await self.initialize()
-            
+        """Get best move and evaluation from Stockfish."""
         if not self.engine:
-            raise RuntimeError("Failed to initialize Stockfish engine")
+            await self.initialize()
+            if not self.engine:
+                raise RuntimeError("Failed to initialize Stockfish")
             
-        # Get the move from the engine using configured depth
         result = await self.engine.play(
             board,
             chess.engine.Limit(depth=self.level),
             info=chess.engine.INFO_SCORE
         )
         
-        # Get evaluation in centipawns
-        if result.move is None:
+        if not result.move:
             raise RuntimeError("Stockfish failed to return a move")
             
-        score_value = 0.0
-        if "score" in result.info:
-            score = result.info["score"].relative
-            if score.is_mate():
-                # Handle mate scores
-                mate_score = score.mate()
-                score_value = 100.0 if mate_score and mate_score > 0 else -100.0
-            else:
-                # Regular evaluation in centipawns
-                cp_score = score.score()
-                if cp_score is not None:
-                    score_value = float(cp_score) / 100.0
+        score = result.info.get("score", chess.engine.Score(None)).relative
+        score_value = (
+            (100.0 if score.mate() > 0 else -100.0)
+            if score.is_mate()
+            else float(score.score() or 0) / 100.0
+        )
             
         return result.move, score_value
         
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((chess.engine.EngineError, TimeoutError, ConnectionError))
+    )
     async def cleanup(self):
-        """Clean up engine resources"""
-        if self.engine:
-            await self.engine.quit()
-            self.engine = None
-        if self.transport:
-            self.transport = None 
+        """Clean up engine resources with retry."""
+        try:
+            if self.engine:
+                await self.engine.quit()
+        finally:
+            if self.transport:
+                self.transport.close()
+            self.engine = self.transport = None 
