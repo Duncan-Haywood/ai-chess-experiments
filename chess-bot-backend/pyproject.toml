@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "chess-bot-backend"
+version = "0.1.0"
+description = ""
+authors = ["Duncan Haywood <duncan.haywood.ai@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+python-chess = "^1.999"
+python-dotenv = "^1.0.1"
+langchain-openai = "^0.3.6"
+langchain-deepseek = "^0.1.2"
+langchain-anthropic = "^0.3.7"
+langchain = "^0.3.19"
+tenacity = "^9.0.0"
+langchain-xai = "^0.2.1"
+langchain-google-genai = "^2.0.10"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
