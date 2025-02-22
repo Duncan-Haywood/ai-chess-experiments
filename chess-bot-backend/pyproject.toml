@@ -16,6 +16,9 @@ langchain = "^0.3.19"
 tenacity = "^9.0.0"
 langchain-xai = "^0.2.1"
 langchain-google-genai = "^2.0.10"
+sqlalchemy = "^2.0.38"
+psycopg2-binary = "^2.9.10"
+alembic = "^1.14.1"
 
 
 [tool.poetry.group.dev.dependencies]
